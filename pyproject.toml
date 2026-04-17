@@ -9,11 +9,14 @@ dependencies = [
 ]
 
 [project.scripts]
-python-notes = "python-notes.cli:app"
+python-notes = "python_notes.cli:app"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build_backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [project.optional-dependencies]
 dev = [

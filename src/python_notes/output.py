@@ -3,5 +3,5 @@ import typer
 app = typer.Typer()
 
 @app.command()
-def output():
+def hello():
     print("Hello World")
