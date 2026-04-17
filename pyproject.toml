@@ -1,0 +1,23 @@
+[project]
+name = "python-notes"
+version = "0.1.0"
+description = "Python cli note taking app"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+	"typer",
+]
+
+[project.scripts]
+python-notes = "python-notes.cli:app"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build_backend = "setuptools.build_meta"
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "isort",
+    "flake8"
+]
