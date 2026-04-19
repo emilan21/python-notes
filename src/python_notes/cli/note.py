@@ -1,14 +1,21 @@
 import typer
+from pathlib import Path
 
 from ..note.note import Note
 
 app = typer.Typer()
 
 def get_note() -> Note:
-    return Note(note_path = "data/")
+    path = Path("data")
+    return Note(note_path = path, editor="nvim")
 
 
 @app.command()
 def new(title: str):
     note = get_note()
     note.new(title)
+
+@app.command()
+def delete(title: str):
+    note = get_note()
+    note.delete(title)
