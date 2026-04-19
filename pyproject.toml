@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.scripts]
-python-notes = "python_notes.cli:app"
+python-notes = "python_notes.main:app"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
