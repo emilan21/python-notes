@@ -24,3 +24,13 @@ def delete(title: str):
 def list():
     note = get_note()
     note.list()
+
+@app.command()
+def show(title: str):
+    note = get_note()
+    note.show(title)
+
+@app.command()
+def edit(title: str):
+    note = get_note()
+    note.edit(title)
