@@ -20,7 +20,10 @@ class Note:
 
 
     def list(self):
-        print(f"Listing all notes")
+        print(f"Listing all notes\n")
+        files = [f for f in self.note_path.iterdir() if f.is_file()]
+        for file in files:
+            print(file.name)
 
 
     def search(self, title: str):

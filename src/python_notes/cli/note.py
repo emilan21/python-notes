@@ -19,3 +19,8 @@ def new(title: str):
 def delete(title: str):
     note = get_note()
     note.delete(title)
+
+@app.command()
+def list():
+    note = get_note()
+    note.list()
