@@ -4,12 +4,14 @@ from typing import List
 from pathlib import Path
 import subprocess
 
+from python_notes.config.config import Settings
+
 from ..note.note import Note
 
 app = typer.Typer()
 
-def get_note_path() -> Path:
-    return Path("data")
+def get_settings() -> Settings:
+    return Settings.load()
 
 
 @app.command()
@@ -18,7 +20,8 @@ def new(
     tags: List[str] = typer.Option([], "--tag", "-g", help="Tags for the note")
 ):
     """Create a new note with the given title."""
-    note = Note(note_path=get_note_path(), editor="nvim", title=title, tags=tags)
+    settings = get_settings()
+    _ = Note(note_path=Path(settings.notes_dir), editor=settings.editor, title=title, tags=tags)
 
 
 @app.command()
@@ -28,7 +31,8 @@ def delete(
 ):
     """Delete a note by title or ID."""
     
-    note_path = get_note_path()
+    settings = get_settings()
+    note_path = Path(settings.notes_dir)
     matching_files = []
     
     if title:
@@ -70,7 +74,8 @@ def delete(
 def list():
     """List all notes in the notes directory."""
     
-    note_path = get_note_path()
+    settings = get_settings()
+    note_path = Path(settings.notes_dir)
     if not note_path.exists():
         print("Notes directory does not exist")
         return
@@ -98,7 +103,8 @@ def show(
 ):
     """Display the contents of a note."""
     
-    note_path = get_note_path()
+    settings = get_settings()
+    note_path = Path(settings.notes_dir)
     matching_files = []
     
     if title:
@@ -131,11 +137,10 @@ def show(
     if not data_file.exists():
         print(f"Note data file not found")
         return
-    
-    try:
-        subprocess.run(["cat", str(data_file)], check=True)
-    except subprocess.CalledProcessError:
-        print(f"Error displaying note")
+
+    with open(data_file, 'r') as f:
+        data = f.read()
+        print(data)
 
 
 @app.command()
@@ -145,8 +150,9 @@ def edit(
 ):
     """Edit an existing note in the configured editor."""
     
-    note_path = get_note_path()
-    editor = "nvim"
+    settings = get_settings()
+    note_path = Path(settings.notes_dir)
+    editor = settings.editor
     matching_files = []
     
     if title:
@@ -198,7 +204,8 @@ def tags(
 ):
     """Manage tags: list all tags, filter notes by tags, or add/remove tags from notes."""
     
-    note_path = get_note_path()
+    settings = get_settings()
+    note_path = Path(settings.notes_dir)
     if not note_path.exists():
         print("Notes directory does not exist")
         return
@@ -349,7 +356,8 @@ def search(
 ):
     """Search for notes based on title, tags, or body text."""
     
-    note_path = get_note_path()
+    settings = get_settings()
+    note_path = Path(settings.notes_dir)
     if not note_path.exists():
         print("Notes directory does not exist")
         return
