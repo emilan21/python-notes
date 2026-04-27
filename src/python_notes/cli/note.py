@@ -7,6 +7,12 @@ import typer
 
 from ..config.config import Settings
 from ..note.note import Note
+from ..output import (
+    Formatter,
+    SearchHit,
+    UnknownFormatError,
+    get_formatter,
+)
 from ..storage import (
     AmbiguousMatchError,
     NoteNotFoundError,
@@ -28,6 +34,16 @@ def _get_repo() -> NoteRepository:
     return NoteRepository(_get_settings().notes_dir)
 
 
+def _get_formatter(format_flag: str | None) -> Formatter:
+    """Resolve format precedence: CLI flag > config default > 'text'."""
+    name = format_flag or _get_settings().default_output or "text"
+    try:
+        return get_formatter(name)
+    except UnknownFormatError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2)
+
+
 def _resolve_or_exit(
     repo: NoteRepository,
     *,
@@ -35,9 +51,8 @@ def _resolve_or_exit(
     note_id: int = 0,
     slug: str = "",
 ) -> NoteRecord:
-    """Resolve a single note or exit with a helpful CLI message."""
     if not (title or note_id or slug):
-        typer.echo("Error: provide --title, --slug, or --id")
+        typer.echo("Error: provide --title, --slug, or --id", err=True)
         raise typer.Exit(code=2)
 
     try:
@@ -47,17 +62,21 @@ def _resolve_or_exit(
             title=title or None,
         )
     except NoteNotFoundError as exc:
-        typer.echo(str(exc))
+        typer.echo(str(exc), err=True)
         raise typer.Exit(code=1)
     except AmbiguousMatchError as exc:
-        typer.echo(str(exc))
-        typer.echo("Re-run with --id to disambiguate.")
+        typer.echo(str(exc), err=True)
+        typer.echo("Re-run with --id to disambiguate.", err=True)
         raise typer.Exit(code=1)
 
 
-def _format_record(record: NoteRecord) -> str:
-    tags_str = f" [{', '.join(record.tags)}]" if record.tags else ""
-    return f"  {record.safe_title}{tags_str}"
+# A single reusable Option so every command's --format help is identical.
+FormatOption = typer.Option(
+    None,
+    "--format",
+    "-F",
+    help="Output format: text or json. Defaults to config 'default_output'.",
+)
 
 
 # -------------------------------------------------------------------- commands
@@ -87,9 +106,11 @@ def list_notes(
     tag: list[str] = typer.Option(
         [], "--tag", "-g", help="Filter by tag (may be repeated; AND semantics)"
     ),
+    output_format: str = FormatOption,
 ):
     """List all notes."""
     repo = _get_repo()
+    fmt = _get_formatter(output_format)
     records = repo.list_all()
 
     if tag:
@@ -101,17 +122,13 @@ def list_notes(
         "id": lambda r: r.id,
     }
     if sort_by not in keys:
-        typer.echo(f"Unknown sort key: {sort_by}. Valid: {', '.join(keys)}")
+        typer.echo(
+            f"Unknown sort key: {sort_by}. Valid: {', '.join(keys)}", err=True
+        )
         raise typer.Exit(code=2)
 
     records.sort(key=keys[sort_by], reverse=reverse)
-
-    if not records:
-        typer.echo("No notes found")
-        return
-    typer.echo("Notes:")
-    for record in records:
-        typer.echo(_format_record(record))
+    typer.echo(fmt.format_record_list(records))
 
 
 @app.command()
@@ -122,11 +139,9 @@ def show(
 ):
     """Display the contents of a note."""
     record = _resolve_or_exit(_get_repo(), title=title, note_id=id, slug=slug)
-
     if not record.data_path.exists():
-        typer.echo("Note data file not found")
+        typer.echo("Note data file not found", err=True)
         raise typer.Exit(code=1)
-
     typer.echo(record.read_body())
 
 
@@ -140,7 +155,9 @@ def delete(
     repo = _get_repo()
     record = _resolve_or_exit(repo, title=title, note_id=id, slug=slug)
     repo.delete(record)
-    typer.echo(f"Deleted note: {record.safe_title} (id {record.id})")
+    typer.echo(
+        f"Deleted note: {record.safe_title} (id {record.id})", err=True
+    )
 
 
 @app.command()
@@ -155,7 +172,7 @@ def edit(
     record = _resolve_or_exit(repo, title=title, note_id=id, slug=slug)
 
     if not record.data_path.exists():
-        typer.echo("Note data file not found")
+        typer.echo("Note data file not found", err=True)
         raise typer.Exit(code=1)
 
     try:
@@ -163,7 +180,7 @@ def edit(
     except FileNotFoundError:
         raise RuntimeError(f"Editor '{settings.editor}' not found")
     except subprocess.CalledProcessError as exc:
-        typer.echo(f"Editor exited with error: {exc}")
+        typer.echo(f"Editor exited with error: {exc}", err=True)
         raise typer.Exit(code=1)
 
 
@@ -180,23 +197,21 @@ def tags(
     title: str = typer.Option("", "--title", "-t", help="Note title for add/remove"),
     slug: str = typer.Option("", "--slug", "-s", help="Note slug for add/remove"),
     id: int = typer.Option(0, "--id", "-i", help="Note ID for add/remove"),
+    output_format: str = FormatOption,
 ):
     """List, filter, or modify tags."""
     repo = _get_repo()
+    fmt = _get_formatter(output_format)
     records = repo.list_all()
 
     if not records:
-        typer.echo("No notes found")
+        typer.echo(fmt.format_record_list([]))
         return
 
     if filter_by:
         matches = [r for r in records if all(t in r.tags for t in filter_by)]
-        typer.echo(f"Notes with tags {filter_by}:")
-        if not matches:
-            typer.echo("  No notes found with those tags")
-            return
-        for record in sorted(matches, key=lambda r: r.safe_title):
-            typer.echo(_format_record(record))
+        matches.sort(key=lambda r: r.safe_title)
+        typer.echo(fmt.format_record_list(matches))
         return
 
     if add or remove:
@@ -210,22 +225,18 @@ def tags(
                 new_tags.remove(t)
         repo.update_tags(record, new_tags)
         action = "Added" if add else "Removed"
-        changed = add or remove
-        typer.echo(f"{action} tags {list(changed)} on '{record.safe_title}'")
-        typer.echo(f"Current tags: {new_tags}")
+        changed = list(add or remove)
+        typer.echo(
+            f"{action} tags {changed} on '{record.safe_title}'", err=True
+        )
+        typer.echo(f"Current tags: {new_tags}", err=True)
         return
 
     # Default + --list: show all unique tags
     all_tags: set[str] = set()
     for record in records:
         all_tags.update(record.tags)
-
-    if not all_tags:
-        typer.echo("No tags found")
-        return
-    typer.echo("All tags:")
-    for t in sorted(all_tags):
-        typer.echo(f"  {t}")
+    typer.echo(fmt.format_tag_list(all_tags))
 
 
 @app.command()
@@ -234,17 +245,16 @@ def search(
     in_title: bool = typer.Option(False, "--in-title", help="Search in titles only"),
     in_tags: bool = typer.Option(False, "--in-tags", help="Search in tags only"),
     in_body: bool = typer.Option(False, "--in-body", help="Search in body text only"),
+    output_format: str = FormatOption,
 ):
     """Search notes by title, tags, or body."""
     repo = _get_repo()
+    fmt = _get_formatter(output_format)
     records = repo.list_all()
-    if not records:
-        typer.echo("No notes found")
-        return
 
     search_all = not (in_title or in_tags or in_body)
     needle = query.lower()
-    results: list[tuple[NoteRecord, list[str]]] = []
+    hits: list[SearchHit] = []
 
     for record in records:
         where: list[str] = []
@@ -261,13 +271,7 @@ def search(
             except OSError:
                 pass
         if where:
-            results.append((record, where))
+            hits.append(SearchHit(record=record, locations=where))
 
-    if not results:
-        typer.echo(f"No notes found matching '{query}'")
-        return
-
-    typer.echo(f"Found {len(results)} note(s) matching '{query}':")
-    for record, where in sorted(results, key=lambda x: x[0].safe_title):
-        loc = f" (found in: {', '.join(where)})"
-        typer.echo(f"{_format_record(record)}{loc}")
+    hits.sort(key=lambda h: h.record.safe_title)
+    typer.echo(fmt.format_search_results(hits, query))
