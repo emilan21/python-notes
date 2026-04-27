@@ -4,7 +4,7 @@ from pathlib import Path
 
 import typer
 
-from ..config.config import Settings, config_path
+from ..config.config import Settings, VALID_OUTPUT_FORMATS, config_path
 
 app = typer.Typer(help="Manage python-notes configuration.")
 
@@ -31,6 +31,13 @@ def init(
         raise typer.Exit(code=1)
 
     defaults = Settings.default()
+    if default_output is not None and default_output not in VALID_OUTPUT_FORMATS:
+        valid = ", ".join(VALID_OUTPUT_FORMATS)
+        typer.echo(
+            f"Invalid --default-output {default_output!r}; valid: {valid}", err=True
+        )
+        raise typer.Exit(code=2)
+
     settings = Settings(
         notes_dir=notes_dir.expanduser() if notes_dir else defaults.notes_dir,
         editor=editor or defaults.editor,
@@ -48,7 +55,11 @@ def init(
 @app.command()
 def show():
     """Display the currently loaded configuration."""
-    settings = Settings.load()
+    try:
+        settings = Settings.load()
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2)
     path = config_path()
     source = str(path) if path.exists() else "(defaults — no config file found)"
     typer.echo(f"Config source: {source}")

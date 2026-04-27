@@ -140,3 +140,35 @@ def test_json_handles_datetime_creation_date():
     out = JsonFormatter().format_record_list([rec])
     payload = json.loads(out)
     assert payload[0]["created"] == "2024-01-01_12_00_00"
+
+
+# --------------------------------------------------- record_detail and created
+
+
+def test_text_record_detail_returns_body_only():
+    out = TextFormatter().format_record_detail(_record(), "hello body")
+    assert out == "hello body"
+
+
+def test_json_record_detail_includes_body_and_metadata():
+    payload = json.loads(
+        JsonFormatter().format_record_detail(_record(slug="alpha"), "hello body")
+    )
+    assert payload["slug"] == "alpha"
+    assert payload["body"] == "hello body"
+
+
+def test_text_format_created_summarizes():
+    rec = _record(note_id=42, slug="alpha", tags=["a", "b"])
+    out = TextFormatter().format_created(rec)
+    assert "alpha" in out
+    assert "42" in out
+    assert "[a, b]" in out
+
+
+def test_json_format_created_returns_record_dict():
+    rec = _record(note_id=42, slug="alpha")
+    payload = json.loads(JsonFormatter().format_created(rec))
+    assert payload["id"] == 42
+    assert payload["slug"] == "alpha"
+    assert "body" not in payload  # created is summary, not detail

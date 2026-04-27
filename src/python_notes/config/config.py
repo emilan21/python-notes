@@ -8,6 +8,7 @@ import yaml
 
 APP_NAME = "python-notes"
 CONFIG_FILENAME = "config.yaml"
+VALID_OUTPUT_FORMATS = ("text", "json")
 
 
 @dataclass(frozen=True)
@@ -49,10 +50,18 @@ class Settings:
             else defaults.notes_dir
         )
 
+        default_output = raw.get("default_output", defaults.default_output)
+        if default_output not in VALID_OUTPUT_FORMATS:
+            valid = ", ".join(VALID_OUTPUT_FORMATS)
+            raise ValueError(
+                f"Config file {path}: invalid default_output {default_output!r}; "
+                f"valid: {valid}"
+            )
+
         return cls(
             notes_dir=notes_dir_path,
             editor=raw.get("editor", defaults.editor),
-            default_output=raw.get("default_output", defaults.default_output),
+            default_output=default_output,
         )
 
     def save(self, path: Path | None = None) -> Path:

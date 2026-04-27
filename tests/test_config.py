@@ -116,3 +116,12 @@ def test_settings_is_frozen(isolated_xdg):
     s = Settings.default()
     with pytest.raises(Exception):
         s.editor = "nope"  # type: ignore[misc]
+
+
+def test_load_rejects_invalid_default_output(isolated_xdg):
+    path = config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump({"default_output": "xml"}))
+    with pytest.raises(ValueError) as exc_info:
+        Settings.load()
+    assert "xml" in str(exc_info.value)

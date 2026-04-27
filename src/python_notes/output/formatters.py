@@ -32,6 +32,8 @@ class Formatter(Protocol):
     def format_record_list(self, records: Iterable[NoteRecord]) -> str: ...
     def format_tag_list(self, tags: Iterable[str]) -> str: ...
     def format_search_results(self, hits: Iterable[SearchHit], query: str) -> str: ...
+    def format_record_detail(self, record: NoteRecord, body: str) -> str: ...
+    def format_created(self, record: NoteRecord) -> str: ...
 
 
 # ---------------------------------------------------------------- text format
@@ -70,6 +72,14 @@ class TextFormatter:
             lines.append(f"{self._record_line(hit.record)}{loc}")
         return "\n".join(lines)
 
+    def format_record_detail(self, record: NoteRecord, body: str) -> str:
+        # Same body-as-text behavior as before; metadata header is for context.
+        return body
+
+    def format_created(self, record: NoteRecord) -> str:
+        tags = f" [{', '.join(record.tags)}]" if record.tags else ""
+        return f"Created note {record.safe_title} (id {record.id}){tags}"
+
     @staticmethod
     def _record_line(record: NoteRecord) -> str:
         tags = f" [{', '.join(record.tags)}]" if record.tags else ""
@@ -103,6 +113,13 @@ class JsonFormatter:
             for hit in hits
         ]
         return json.dumps(payload, indent=2, default=_json_default)
+
+    def format_record_detail(self, record: NoteRecord, body: str) -> str:
+        payload = {**self._record_to_dict(record), "body": body}
+        return json.dumps(payload, indent=2, default=_json_default)
+
+    def format_created(self, record: NoteRecord) -> str:
+        return json.dumps(self._record_to_dict(record), indent=2, default=_json_default)
 
     @staticmethod
     def _record_to_dict(record: NoteRecord) -> dict:

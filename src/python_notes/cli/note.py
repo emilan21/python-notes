@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import typer
 
 from ..config.config import Settings
-from ..note.note import Note
+from ..editor import EditorError, launch_editor
+from ..note.note import create_note, normalize_tags
 from ..output import (
     Formatter,
     SearchHit,
@@ -27,7 +27,11 @@ app = typer.Typer(help="Manage notes.")
 
 
 def _get_settings() -> Settings:
-    return Settings.load()
+    try:
+        return Settings.load()
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2)
 
 
 def _get_repo() -> NoteRepository:
@@ -86,15 +90,26 @@ FormatOption = typer.Option(
 def new(
     title: str = typer.Option(..., "--title", "-t", help="Title of the note"),
     tags: list[str] = typer.Option([], "--tag", "-g", help="Tags for the note"),
+    no_editor: bool = typer.Option(
+        False, "--no-editor", help="Create the note without launching an editor"
+    ),
+    output_format: str = FormatOption,
 ):
-    """Create a new note with the given title."""
+    """Create a new note."""
     settings = _get_settings()
-    Note(
-        note_path=Path(settings.notes_dir),
-        editor=settings.editor,
-        title=title,
-        tags=tags,
-    )
+    fmt = _get_formatter(output_format)
+    editor = None if no_editor else settings.editor
+    try:
+        record = create_note(
+            notes_dir=Path(settings.notes_dir),
+            title=title,
+            tags=tags,
+            editor=editor,
+        )
+    except EditorError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1)
+    typer.echo(fmt.format_created(record))
 
 
 @app.command(name="list")
@@ -136,13 +151,15 @@ def show(
     title: str = typer.Option("", "--title", "-t", help="Note title to display"),
     slug: str = typer.Option("", "--slug", "-s", help="Note slug to display"),
     id: int = typer.Option(0, "--id", "-i", help="Note ID to display"),
+    output_format: str = FormatOption,
 ):
     """Display the contents of a note."""
     record = _resolve_or_exit(_get_repo(), title=title, note_id=id, slug=slug)
+    fmt = _get_formatter(output_format)
     if not record.data_path.exists():
         typer.echo("Note data file not found", err=True)
         raise typer.Exit(code=1)
-    typer.echo(record.read_body())
+    typer.echo(fmt.format_record_detail(record, record.read_body()))
 
 
 @app.command()
@@ -176,11 +193,9 @@ def edit(
         raise typer.Exit(code=1)
 
     try:
-        subprocess.run([settings.editor, str(record.data_path)], check=True)
-    except FileNotFoundError:
-        raise RuntimeError(f"Editor '{settings.editor}' not found")
-    except subprocess.CalledProcessError as exc:
-        typer.echo(f"Editor exited with error: {exc}", err=True)
+        launch_editor(settings.editor, record.data_path)
+    except EditorError as exc:
+        typer.echo(str(exc), err=True)
         raise typer.Exit(code=1)
 
 
@@ -216,19 +231,19 @@ def tags(
 
     if add or remove:
         record = _resolve_or_exit(repo, title=title, note_id=id, slug=slug)
+        adds = normalize_tags(add)
+        rems = normalize_tags(remove)
         new_tags = list(record.tags)
-        for t in add:
+        for t in adds:
             if t not in new_tags:
                 new_tags.append(t)
-        for t in remove:
+        for t in rems:
             if t in new_tags:
                 new_tags.remove(t)
         repo.update_tags(record, new_tags)
-        action = "Added" if add else "Removed"
-        changed = list(add or remove)
-        typer.echo(
-            f"{action} tags {changed} on '{record.safe_title}'", err=True
-        )
+        action = "Added" if adds else "Removed"
+        changed = adds or rems
+        typer.echo(f"{action} tags {changed} on '{record.safe_title}'", err=True)
         typer.echo(f"Current tags: {new_tags}", err=True)
         return
 
