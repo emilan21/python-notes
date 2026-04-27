@@ -33,7 +33,7 @@ def delete(
     
     if title:
         # Look for metadata files that match the title pattern
-        matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+        matching_files = [f for f in note_path.glob(f"{title}_*_metadata_*")]
     elif id:
         # Look for metadata files that match the id
         all_metadata_files = [f for f in note_path.iterdir() if f.is_file() and "_metadata_" in f.name]
@@ -103,7 +103,7 @@ def show(
     
     if title:
         # Look for metadata files that match the title pattern
-        matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+        matching_files = [f for f in note_path.glob(f"{title}_*_metadata_*")]
     elif id:
         # Look for metadata files that match the id
         all_metadata_files = [f for f in note_path.iterdir() if f.is_file() and "_metadata_" in f.name]
@@ -151,7 +151,7 @@ def edit(
     
     if title:
         # Look for metadata files that match the title pattern
-        matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+        matching_files = [f for f in note_path.glob(f"{title}_*_metadata_*")]
     elif id:
         # Look for metadata files that match the id
         all_metadata_files = [f for f in note_path.iterdir() if f.is_file() and "_metadata_" in f.name]
@@ -252,7 +252,7 @@ def tags(
         
         matching_files = []
         if title:
-            matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+            matching_files = [f for f in note_path.glob(f"{title}_*_metadata_*")]
         elif id:
             for metadata_file in metadata_files:
                 with open(metadata_file, 'r') as f:
@@ -292,7 +292,7 @@ def tags(
         
         matching_files = []
         if title:
-            matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+            matching_files = [f for f in note_path.glob(f"{title}_*_metadata_*")]
         elif id:
             for metadata_file in metadata_files:
                 with open(metadata_file, 'r') as f:

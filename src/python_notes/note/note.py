@@ -30,8 +30,8 @@ class Note:
         self.note_metadata.id = int(uuid.uuid5(namespace, self.note_metadata.safe_title))
         self.note_metadata.creation_date = datetime.now()
         self.note_metadata.creation_date_as_str = self.note_metadata.creation_date.strftime("%Y-%m-%d_%H_%M_%S")
-        self.note_metadata.note_metadata_path = str(note_path / f"{self.note_metadata.safe_title}_metadata_{self.note_metadata.creation_date_as_str}")
-        self.note_metadata.note_data_path = str(note_path / f"{self.note_metadata.safe_title}_data_{self.note_metadata.creation_date_as_str}.md")
+        self.note_metadata.note_metadata_path = str(note_path / f"{self.note_metadata.safe_title}_{self.note_metadata.id}_metadata_{self.note_metadata.creation_date_as_str}")
+        self.note_metadata.note_data_path = str(note_path / f"{self.note_metadata.safe_title}_{self.note_metadata.id}_data_{self.note_metadata.creation_date_as_str}.md")
         self.note_metadata.tags = tags
 
         print(f"Created new note called {self.note_metadata.safe_title}\n")
