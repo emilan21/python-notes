@@ -65,7 +65,7 @@ def list():
     for metadata_file in sorted(metadata_files):
         with open(metadata_file, 'r') as f:
             metadata = yaml.safe_load(f)
-        title = metadata.get('title', metadata_file.stem)
+        title = metadata.get('safe_title', metadata_file.stem)
         tags = metadata.get('tags', [])
         tags_str = f" [{', '.join(tags)}]" if tags else ""
         print(f"  {title}{tags_str}")
