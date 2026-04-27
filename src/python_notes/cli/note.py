@@ -148,3 +148,130 @@ def edit(title: str):
         raise RuntimeError(f"Editor '{editor}' not found")
     except subprocess.CalledProcessError:
         print(f"Error editing note")
+
+@app.command()
+def tags(
+    list_all: bool = typer.Option(False, "--list", "-l", help="List all tags"),
+    filter_by: List[str] = typer.Option([], "--filter", "-f", help="Filter notes by tags"),
+    add: List[str] = typer.Option([], "--add", "-a", help="Add tags to a note"),
+    remove: List[str] = typer.Option([], "--remove", "-r", help="Remove tags from a note"),
+    title: str = typer.Option("", "--title", "-t", help="Note title for add/remove operations")
+):
+    """Manage tags: list all tags, filter notes by tags, or add/remove tags from notes."""
+    
+    note_path = get_note_path()
+    if not note_path.exists():
+        print("Notes directory does not exist")
+        return
+    
+    # Find all metadata files
+    metadata_files = [f for f in note_path.iterdir() if f.is_file() and "_metadata_" in f.name]
+    if not metadata_files:
+        print("No notes found")
+        return
+    
+    # List all unique tags
+    if list_all:
+        all_tags = set()
+        for metadata_file in metadata_files:
+            with open(metadata_file, 'r') as f:
+                metadata = yaml.safe_load(f)
+            tags = metadata.get('tags', [])
+            all_tags.update(tags)
+        
+        if all_tags:
+            print("All tags:")
+            for tag in sorted(all_tags):
+                print(f"  {tag}")
+        else:
+            print("No tags found")
+        return
+    
+    # Filter notes by tags
+    if filter_by:
+        print(f"Notes with tags {filter_by}:")
+        found = False
+        for metadata_file in sorted(metadata_files):
+            with open(metadata_file, 'r') as f:
+                metadata = yaml.safe_load(f)
+            note_tags = metadata.get('tags', [])
+            # Check if all filter tags are in the note's tags
+            if all(tag in note_tags for tag in filter_by):
+                title = metadata.get('safe_title', metadata_file.stem)
+                tags_str = f" [{', '.join(note_tags)}]" if note_tags else ""
+                print(f"  {title}{tags_str}")
+                found = True
+        if not found:
+            print("  No notes found with those tags")
+        return
+    
+    # Add tags to a note
+    if add:
+        if not title:
+            print("Error: --title is required when adding tags")
+            return
+        
+        matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+        if not matching_files:
+            print(f"Note '{title}' not found")
+            return
+        
+        metadata_file = sorted(matching_files)[-1]
+        with open(metadata_file, 'r') as f:
+            metadata = yaml.safe_load(f)
+        
+        current_tags = metadata.get('tags', [])
+        for tag in add:
+            if tag not in current_tags:
+                current_tags.append(tag)
+        
+        metadata['tags'] = current_tags
+        with open(metadata_file, 'w') as f:
+            yaml.dump(metadata, f)
+        
+        print(f"Added tags {add} to note '{title}'")
+        print(f"Current tags: {current_tags}")
+        return
+    
+    # Remove tags from a note
+    if remove:
+        if not title:
+            print("Error: --title is required when removing tags")
+            return
+        
+        matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+        if not matching_files:
+            print(f"Note '{title}' not found")
+            return
+        
+        metadata_file = sorted(matching_files)[-1]
+        with open(metadata_file, 'r') as f:
+            metadata = yaml.safe_load(f)
+        
+        current_tags = metadata.get('tags', [])
+        for tag in remove:
+            if tag in current_tags:
+                current_tags.remove(tag)
+        
+        metadata['tags'] = current_tags
+        with open(metadata_file, 'w') as f:
+            yaml.dump(metadata, f)
+        
+        print(f"Removed tags {remove} from note '{title}'")
+        print(f"Current tags: {current_tags}")
+        return
+    
+    # Default: list all tags
+    all_tags = set()
+    for metadata_file in metadata_files:
+        with open(metadata_file, 'r') as f:
+            metadata = yaml.safe_load(f)
+        tags = metadata.get('tags', [])
+        all_tags.update(tags)
+    
+    if all_tags:
+        print("All tags:")
+        for tag in sorted(all_tags):
+            print(f"  {tag}")
+    else:
+        print("No tags found")
