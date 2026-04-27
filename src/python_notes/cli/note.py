@@ -13,21 +13,40 @@ def get_note_path() -> Path:
 
 
 @app.command()
-def new(title: str, tags: List[str] = typer.Option([], "--tag", "-t")):
+def new(
+    title: str = typer.Option(..., "--title", "-t", help="Title of the note"),
+    tags: List[str] = typer.Option([], "--tag", "-g", help="Tags for the note")
+):
     """Create a new note with the given title."""
     note = Note(note_path=get_note_path(), editor="nvim", title=title, tags=tags)
 
 
 @app.command()
-def delete(title: str):
-    """Delete a note by title."""
+def delete(
+    title: str = typer.Option("", "--title", "-t", help="Note title to delete"),
+    id: int = typer.Option(0, "--id", "-i", help="Note ID to delete")
+):
+    """Delete a note by title or ID."""
     
     note_path = get_note_path()
-    # Look for metadata files that match the title pattern
-    matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+    matching_files = []
+    
+    if title:
+        # Look for metadata files that match the title pattern
+        matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+    elif id:
+        # Look for metadata files that match the id
+        all_metadata_files = [f for f in note_path.iterdir() if f.is_file() and "_metadata_" in f.name]
+        for metadata_file in all_metadata_files:
+            with open(metadata_file, 'r') as f:
+                metadata = yaml.safe_load(f)
+            if metadata.get('id') == id:
+                matching_files.append(metadata_file)
+                break
     
     if not matching_files:
-        print(f"Note '{title}' not found")
+        search_term = f"title '{title}'" if title else f"id {id}"
+        print(f"Note with {search_term} not found")
         return
     
     # Use the most recent file if multiple exist
@@ -43,7 +62,8 @@ def delete(title: str):
         data_file.unlink()
     metadata_file.unlink()
     
-    print(f"Deleted note: {title}")
+    note_identifier = title if title else f"ID {id}"
+    print(f"Deleted note: {note_identifier}")
 
 
 @app.command()
@@ -72,7 +92,10 @@ def list():
 
 
 @app.command()
-def show(title: str = typer.Option("", '--title'), id: int = typer.Option(0, '--id')):
+def show(
+    title: str = typer.Option("", '--title', '-t', help="Note title to display"),
+    id: int = typer.Option(0, '--id', '-i', help="Note ID to display")
+):
     """Display the contents of a note."""
     
     note_path = get_note_path()
@@ -116,17 +139,32 @@ def show(title: str = typer.Option("", '--title'), id: int = typer.Option(0, '--
 
 
 @app.command()
-def edit(title: str):
+def edit(
+    title: str = typer.Option("", "--title", "-t", help="Note title to edit"),
+    id: int = typer.Option(0, "--id", "-i", help="Note ID to edit")
+):
     """Edit an existing note in the configured editor."""
     
     note_path = get_note_path()
     editor = "nvim"
+    matching_files = []
     
-    # Look for metadata files that match the title pattern
-    matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+    if title:
+        # Look for metadata files that match the title pattern
+        matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+    elif id:
+        # Look for metadata files that match the id
+        all_metadata_files = [f for f in note_path.iterdir() if f.is_file() and "_metadata_" in f.name]
+        for metadata_file in all_metadata_files:
+            with open(metadata_file, 'r') as f:
+                metadata = yaml.safe_load(f)
+            if metadata.get('id') == id:
+                matching_files.append(metadata_file)
+                break
     
     if not matching_files:
-        print(f"Note '{title}' not found")
+        search_term = f"title '{title}'" if title else f"id {id}"
+        print(f"Note with {search_term} not found")
         return
     
     # Use the most recent file if multiple exist
@@ -155,7 +193,8 @@ def tags(
     filter_by: List[str] = typer.Option([], "--filter", "-f", help="Filter notes by tags"),
     add: List[str] = typer.Option([], "--add", "-a", help="Add tags to a note"),
     remove: List[str] = typer.Option([], "--remove", "-r", help="Remove tags from a note"),
-    title: str = typer.Option("", "--title", "-t", help="Note title for add/remove operations")
+    title: str = typer.Option("", "--title", "-t", help="Note title for add/remove operations"),
+    id: int = typer.Option(0, "--id", "-i", help="Note ID for add/remove operations")
 ):
     """Manage tags: list all tags, filter notes by tags, or add/remove tags from notes."""
     
@@ -207,13 +246,24 @@ def tags(
     
     # Add tags to a note
     if add:
-        if not title:
-            print("Error: --title is required when adding tags")
+        if not title and not id:
+            print("Error: --title or --id is required when adding tags")
             return
         
-        matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+        matching_files = []
+        if title:
+            matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+        elif id:
+            for metadata_file in metadata_files:
+                with open(metadata_file, 'r') as f:
+                    metadata = yaml.safe_load(f)
+                if metadata.get('id') == id:
+                    matching_files.append(metadata_file)
+                    break
+        
         if not matching_files:
-            print(f"Note '{title}' not found")
+            search_term = f"title '{title}'" if title else f"id {id}"
+            print(f"Note with {search_term} not found")
             return
         
         metadata_file = sorted(matching_files)[-1]
@@ -229,19 +279,31 @@ def tags(
         with open(metadata_file, 'w') as f:
             yaml.dump(metadata, f)
         
-        print(f"Added tags {add} to note '{title}'")
+        note_identifier = title if title else f"ID {id}"
+        print(f"Added tags {add} to note '{note_identifier}'")
         print(f"Current tags: {current_tags}")
         return
     
     # Remove tags from a note
     if remove:
-        if not title:
-            print("Error: --title is required when removing tags")
+        if not title and not id:
+            print("Error: --title or --id is required when removing tags")
             return
         
-        matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+        matching_files = []
+        if title:
+            matching_files = [f for f in note_path.glob(f"{title}_metadata_*")]
+        elif id:
+            for metadata_file in metadata_files:
+                with open(metadata_file, 'r') as f:
+                    metadata = yaml.safe_load(f)
+                if metadata.get('id') == id:
+                    matching_files.append(metadata_file)
+                    break
+        
         if not matching_files:
-            print(f"Note '{title}' not found")
+            search_term = f"title '{title}'" if title else f"id {id}"
+            print(f"Note with {search_term} not found")
             return
         
         metadata_file = sorted(matching_files)[-1]
@@ -257,7 +319,8 @@ def tags(
         with open(metadata_file, 'w') as f:
             yaml.dump(metadata, f)
         
-        print(f"Removed tags {remove} from note '{title}'")
+        note_identifier = title if title else f"ID {id}"
+        print(f"Removed tags {remove} from note '{note_identifier}'")
         print(f"Current tags: {current_tags}")
         return
     
@@ -275,3 +338,78 @@ def tags(
             print(f"  {tag}")
     else:
         print("No tags found")
+
+
+@app.command()
+def search(
+    query: str = typer.Argument(..., help="Search query"),
+    in_title: bool = typer.Option(False, "--in-title", help="Search in titles only"),
+    in_tags: bool = typer.Option(False, "--in-tags", help="Search in tags only"),
+    in_body: bool = typer.Option(False, "--in-body", help="Search in body text only")
+):
+    """Search for notes based on title, tags, or body text."""
+    
+    note_path = get_note_path()
+    if not note_path.exists():
+        print("Notes directory does not exist")
+        return
+    
+    # Find all metadata files
+    metadata_files = [f for f in note_path.iterdir() if f.is_file() and "_metadata_" in f.name]
+    if not metadata_files:
+        print("No notes found")
+        return
+    
+    # If no specific search location is specified, search everywhere
+    search_all = not (in_title or in_tags or in_body)
+    
+    results = []
+    query_lower = query.lower()
+    
+    for metadata_file in metadata_files:
+        with open(metadata_file, 'r') as f:
+            metadata = yaml.safe_load(f)
+        
+        title = metadata.get('safe_title', metadata_file.stem)
+        original_title = metadata.get('title', title)
+        tags = metadata.get('tags', [])
+        data_file = Path(metadata['note_data_path'])
+        
+        match_found = False
+        match_location = []
+        
+        # Search in title
+        if search_all or in_title:
+            if query_lower in original_title.lower() or query_lower in title.lower():
+                match_found = True
+                match_location.append("title")
+        
+        # Search in tags
+        if search_all or in_tags:
+            if any(query_lower in tag.lower() for tag in tags):
+                match_found = True
+                match_location.append("tags")
+        
+        # Search in body text
+        if search_all or in_body:
+            if data_file.exists():
+                try:
+                    with open(data_file, 'r') as f:
+                        body_text = f.read()
+                    if query_lower in body_text.lower():
+                        match_found = True
+                        match_location.append("body")
+                except Exception:
+                    pass
+        
+        if match_found:
+            tags_str = f" [{', '.join(tags)}]" if tags else ""
+            location_str = f" (found in: {', '.join(match_location)})"
+            results.append(f"  {title}{tags_str}{location_str}")
+    
+    if results:
+        print(f"Found {len(results)} note(s) matching '{query}':")
+        for result in sorted(results):
+            print(result)
+    else:
+        print(f"No notes found matching '{query}'")
