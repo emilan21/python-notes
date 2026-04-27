@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass
 import yaml
+import uuid
 import re
 
 @dataclass
@@ -20,12 +21,13 @@ class NoteMetaData:
 
 class Note:
     def __init__(self, note_path: Path, editor: str, title: str, tags: list):
+        namespace = uuid.NAMESPACE_DNS
         self.note_path = note_path
         self.editor = editor
         self.note_metadata = NoteMetaData
         self.note_metadata.title = title
-        self.note_metadata.id = id(self.note_metadata.title)
         self.note_metadata.safe_title = self.safe_title()
+        self.note_metadata.id = int(uuid.uuid5(namespace, self.note_metadata.safe_title))
         self.note_metadata.creation_date = datetime.now()
         self.note_metadata.creation_date_as_str = self.note_metadata.creation_date.strftime("%Y-%m-%d_%H_%M_%S")
         self.note_metadata.note_metadata_path = str(note_path / f"{self.note_metadata.safe_title}_metadata_{self.note_metadata.creation_date_as_str}")
